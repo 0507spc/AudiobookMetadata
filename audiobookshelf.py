@@ -60,10 +60,13 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
         resp_book_title = re.sub(r'\W+', '', str(response_json['book']['title']).lower())
         resp_book_author = re.sub(r'\W+', '', str(response_json['authors'][0]['name']).lower()) if response_json.get('authors') else ""
         
-        console.print(f"[cyan]Comparing: '{resp_book_title}' vs '{re.sub(r'\W+', '', str(book_title).lower())}'[/cyan]")
-        console.print(f"[cyan]Comparing authors: '{resp_book_author}' vs '{re.sub(r'\W+', '', str(book_author).lower())}'[/cyan]")
+        normalized_title = re.sub(r'\W+', '', str(book_title).lower())
+        normalized_author = re.sub(r'\W+', '', str(book_author).lower())
         
-        if resp_book_title == re.sub(r'\W+', '', str(book_title).lower()) and resp_book_author == re.sub(r'\W+', '', str(book_author).lower()):
+        console.print(f"[cyan]Comparing: '{resp_book_title}' vs '{normalized_title}'[/cyan]")
+        console.print(f"[cyan]Comparing authors: '{resp_book_author}' vs '{normalized_author}'[/cyan]")
+        
+        if resp_book_title == normalized_title and resp_book_author == normalized_author:
             return response_json
 
     return None
