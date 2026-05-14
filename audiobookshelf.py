@@ -57,7 +57,10 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
     
     # Check if response is a single book object (direct result)
     elif 'book' in response_json:
-        resp_book_title = re.sub(r'\W+', '', str(response_json['book']['title']).lower())
+        # Handle case where 'book' might be a list
+        book_data = response_json['book'][0] if isinstance(response_json['book'], list) else response_json['book']
+        
+        resp_book_title = re.sub(r'\W+', '', str(book_data['title']).lower())
         resp_book_author = re.sub(r'\W+', '', str(response_json['authors'][0]['name']).lower()) if response_json.get('authors') else ""
         
         normalized_title = re.sub(r'\W+', '', str(book_title).lower())
