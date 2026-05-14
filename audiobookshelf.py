@@ -57,12 +57,22 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
     
     # Check if response is a single book object (direct result)
     elif 'book' in response_json:
-        # The API returns: { 'book': { 'libraryItem': { ... } }, 'authors': [...], ... }
-        # Extract the libraryItem which contains the actual book metadata
-        library_item = response_json['book'].get('libraryItem', {})
+        # The API returns: { 'book': [...], 'authors': [...], ... }
+        # book is a list, so get the first item
+        book_list = response_json['book']
         
-        if not library_item:
+        if not isinstance(book_list, list) or len(book_list) == 0:
             return None
+        
+        # Get the first book item from the list
+        book_item = book_list[0]
+        
+        # Check if this item has a 'libraryItem' key
+        if 'libraryItem' in book_item:
+            library_item = book_item['libraryItem']
+        else:
+            # Otherwise use the book_item directly
+            library_item = book_item
         
         # Debug: Print book_data keys
         console.print(f"[yellow]LibraryItem keys: {library_item.keys()}[/yellow]")
@@ -71,7 +81,7 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
         media = library_item.get('media', {})
         metadata = media.get('metadata', {})
         
-        console.print(f"[yellow]Metadata: {json.dumps(metadata, indent=2)}[/yellow]")
+        console.print(f"[yellow]Metadata keys: {metadata.keys()}[/yellow]")
         
         # Extract title and author from metadata
         resp_book_title = re.sub(r'\W+', '', str(metadata.get('title', '')).lower())
