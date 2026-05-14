@@ -42,16 +42,29 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
     # Debug: Print response structure
     console.print(f"[yellow]Response keys: {response_json.keys()}[/yellow]")
     
-    if 'audiobooks' not in response_json or len(response_json['audiobooks']) == 0:
-        return None
+    # Check if response has 'audiobooks' array (multiple results)
+    if 'audiobooks' in response_json:
+        if len(response_json['audiobooks']) == 0:
+            return None
+        
+        lookup_response = response_json
+        for audiobook in lookup_response['audiobooks']:
+            resp_book_title = re.sub(r'\W+', '', str(audiobook['audiobook']['book']['title']).lower())
+            resp_book_author = re.sub(r'\W+', '', str(audiobook['audiobook']['book']['author']).lower())
 
-    lookup_response = response_json
-    for audiobook in lookup_response['audiobooks']:
-        resp_book_title = re.sub(r'\W+', '', str(audiobook['audiobook']['book']['title']).lower())
-        resp_book_author = re.sub(r'\W+', '', str(audiobook['audiobook']['book']['author']).lower())
-
+            if resp_book_title == re.sub(r'\W+', '', str(book_title).lower()) and resp_book_author == re.sub(r'\W+', '', str(book_author).lower()):
+                return audiobook["audiobook"]
+    
+    # Check if response is a single book object (direct result)
+    elif 'book' in response_json:
+        resp_book_title = re.sub(r'\W+', '', str(response_json['book']['title']).lower())
+        resp_book_author = re.sub(r'\W+', '', str(response_json['authors'][0]['name']).lower()) if response_json.get('authors') else ""
+        
+        console.print(f"[cyan]Comparing: '{resp_book_title}' vs '{re.sub(r'\W+', '', str(book_title).lower())}'[/cyan]")
+        console.print(f"[cyan]Comparing authors: '{resp_book_author}' vs '{re.sub(r'\W+', '', str(book_author).lower())}'[/cyan]")
+        
         if resp_book_title == re.sub(r'\W+', '', str(book_title).lower()) and resp_book_author == re.sub(r'\W+', '', str(book_author).lower()):
-            return audiobook["audiobook"]
+            return response_json
 
     return None
 
