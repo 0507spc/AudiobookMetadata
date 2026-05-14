@@ -3,7 +3,7 @@ import requests
 from rich import box, print_json
 from rich.prompt import Prompt, Confirm
 from rich.console import Console
-from audiobookshelf import AudiobookshelfBook, audiobookshelf_login, audiobookshelf_book_lookup, audiobookshelf_book_update
+from audiobookshelf import AudiobookshelfBook, audiobookshelf_login, audiobookshelf_book_lookup, audiobookshelf_book_update, audiobookshelf_media_update
 from audnexus import audnexus_asin_lookup
 
 console = Console()
