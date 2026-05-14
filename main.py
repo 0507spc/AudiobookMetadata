@@ -140,6 +140,11 @@ def parse_args():
         description="Search for audiobook metadata and update audiobookshelf"
     )
     parser.add_argument(
+        "--update-fields",
+        help="Book update fields REQUIRED to update.",
+        default=None
+    )
+    parser.add_argument(
         "-t", "--title",
         help="Book title (if not provided, will prompt)",
         default=None
