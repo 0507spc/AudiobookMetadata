@@ -8,6 +8,105 @@ from audnexus import audnexus_asin_lookup
 
 console = Console()
 
+def _build_media_payload(aud_book_details, fields):
+    """
+    Build a media payload dictionary for the Audiobookshelf /items/<ID>/media endpoint.
+    'fields' is a list of canonical names (see supported list below).
+    """
+    payload = {}
+
+    # helpers
+    def first_author(authors):
+        if not authors:
+            return None
+        a0 = authors[0]
+        return a0.get("name") if isinstance(a0, dict) else str(a0)
+
+    # genres & tags lists from audnexus style
+    genres = [g["name"] for g in aud_book_details.get("genres", []) if g.get("type") == "genre"]
+    tags = [g["name"] for g in aud_book_details.get("genres", []) if g.get("type") == "tag"]
+
+    # narrators
+    narrators = aud_book_details.get("narrators") or []
+    if isinstance(narrators, list):
+        narrators_list = [n if isinstance(n, str) else n.get("name", "") for n in narrators]
+    elif isinstance(narrators, str):
+        narrators_list = [narrators]
+    else:
+        narrators_list = []
+
+    # series handling
+    series_name = ""
+    series_sequence = ""
+    series = aud_book_details.get("series") or []
+    if isinstance(series, list) and len(series) > 0:
+        entry = series[0]
+        if isinstance(entry, dict):
+            series_name = entry.get("name", "")
+            series_sequence = entry.get("sequence", "")
+        else:
+            series_name = str(entry)
+    elif isinstance(series, dict):
+        series_name = series.get("name", "")
+        series_sequence = series.get("sequence", "")
+
+    # published year fallback
+    published_year = aud_book_details.get("publishedYear") or ""
+    if not published_year:
+        pd = aud_book_details.get("publishedDate") or aud_book_details.get("published_date")
+        if pd:
+            published_year = str(pd)[:4]
+
+    # Map fields -> payload keys (use the API's expected key names)
+    for f in fields:
+        k = f.strip()
+        if k == "title":
+            payload["title"] = aud_book_details.get("title", "")
+        elif k == "subtitle":
+            payload["subtitle"] = aud_book_details.get("subtitle", "")
+        elif k in ("authors", "author"):
+            # Audiobookshelf sometimes expects authors array; adapt as needed.
+            # Use authors array if available, otherwise use a single author string.
+            authors = aud_book_details.get("authors", [])
+            if authors:
+                # convert to array of objects if possible
+                if isinstance(authors, list) and isinstance(authors[0], dict):
+                    payload["authors"] = authors
+                else:
+                    payload["authors"] = [{"name": first_author(authors)}]
+            else:
+                # fallback to single author string field if API expects 'author'
+                payload["author"] = first_author(authors) or aud_book_details.get("author", "")
+        elif k in ("narrators", "narrator"):
+            # Many ABS APIs accept narrators as array or string — send array
+            payload["narrators"] = narrators_list
+        elif k == "series":
+            if series_name:
+                # ABS may expect series array/structure; use simple fields if your API expects that
+                payload["series"] = [{"name": series_name, "sequence": series_sequence}] if series_name else []
+        elif k == "genres":
+            payload["genres"] = genres
+        elif k in ("publishedYear", "publish_year"):
+            payload["publishedYear"] = published_year
+        elif k == "publishedDate":
+            payload["publishedDate"] = aud_book_details.get("publishedDate") or aud_book_details.get("published_date", "")
+        elif k == "publisher":
+            payload["publisher"] = aud_book_details.get("publisher", "")
+        elif k == "description":
+            payload["description"] = aud_book_details.get("description", "") or aud_book_details.get("descriptionPlain", "")
+        elif k == "isbn":
+            payload["isbn"] = aud_book_details.get("isbn", "") or aud_book_details.get("tagIsbn", "")
+        elif k == "asin":
+            payload["asin"] = aud_book_details.get("asin", "") or aud_book_details.get("tagASIN", "")
+        elif k == "language":
+            payload["language"] = aud_book_details.get("language", "")
+        elif k == "explicit":
+            payload["explicit"] = bool(aud_book_details.get("explicit", False))
+        elif k == "tags":
+            payload["tags"] = tags
+        # ignore unknown keys silently
+
+    return payload
 
 def search_audible(book_title, book_author):
     with console.status("Searching for possible matches on Audible...") as _:
@@ -115,7 +214,25 @@ if __name__ == '__main__':
                         if Confirm.ask(prompt="Show audiobookshelf json response?", default=False):
                             print_json(data=audiobookshelf_lookup)
                             console.line(count=1)
+                            
+                    if args.update_fields:
+                        if args.update_fields.strip().lower() == "all":
+                            fields = ["title","subtitle","authors","narrators","series","genres","publishedYear","publishedDate","publisher","description","isbn","asin","language","explicit","tags"]
+                        else:
+                            fields = [f.strip() for f in args.update_fields.split(",") if f.strip()]
+                    
+                        media_payload = _build_media_payload(aud_book_details, fields)
+                        # If Audiobookshelf expects the payload nested under "metadata" or "media", adjust accordingly.
+                        # Example (if required): media_payload = {"metadata": media_payload}
+                        success = audiobookshelf_media_update(item_id=audiobookshelf_lookup["libraryItem"]["id"] if "libraryItem" in audiobookshelf_lookup else audiobookshelf_lookup["id"], media_payload=media_payload, token=bearer_token)
+                        if success:
+                            console.print("\nSelected fields updated on audiobookshelf.\n", style="green")
+                        else:
+                            console.print("\nFailed to update selected fields on audiobookshelf.\n", style="red")
 
+
+
+        
                     # Use the AudiobookshelfBook class to create a default book object
                     p1 = AudiobookshelfBook(audiobookshelf_json=audiobookshelf_lookup, audnexus_json=aud_book_details)
                     # Update the book genres & tags which we get back from the audnexus api (AKA audible)
