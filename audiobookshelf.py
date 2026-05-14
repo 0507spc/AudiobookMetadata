@@ -57,15 +57,30 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
     
     # Check if response is a single book object (direct result)
     elif 'book' in response_json:
-        # Handle case where 'book' might be a list
-        book_data = response_json['book'][0] if isinstance(response_json['book'], list) else response_json['book']
+        # The API returns: { 'book': { 'libraryItem': { ... } }, 'authors': [...], ... }
+        # Extract the libraryItem which contains the actual book metadata
+        library_item = response_json['book'].get('libraryItem', {})
+        
+        if not library_item:
+            return None
         
         # Debug: Print book_data keys
-        console.print(f"[yellow]Book data keys: {book_data.keys()}[/yellow]")
-        console.print(f"[yellow]Full book data: {json.dumps(book_data, indent=2)}[/yellow]")
+        console.print(f"[yellow]LibraryItem keys: {library_item.keys()}[/yellow]")
         
-        resp_book_title = re.sub(r'\W+', '', str(book_data['title']).lower())
-        resp_book_author = re.sub(r'\W+', '', str(response_json['authors'][0]['name']).lower()) if response_json.get('authors') else ""
+        # Get metadata from the media object
+        media = library_item.get('media', {})
+        metadata = media.get('metadata', {})
+        
+        console.print(f"[yellow]Metadata: {json.dumps(metadata, indent=2)}[/yellow]")
+        
+        # Extract title and author from metadata
+        resp_book_title = re.sub(r'\W+', '', str(metadata.get('title', '')).lower())
+        
+        # Author is in metadata.authors as a list of objects with 'name' field
+        authors = metadata.get('authors', [])
+        resp_book_author = ""
+        if authors and len(authors) > 0:
+            resp_book_author = re.sub(r'\W+', '', str(authors[0].get('name', '')).lower())
         
         normalized_title = re.sub(r'\W+', '', str(book_title).lower())
         normalized_author = re.sub(r'\W+', '', str(book_author).lower())
@@ -74,7 +89,7 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
         console.print(f"[cyan]Comparing authors: '{resp_book_author}' vs '{normalized_author}'[/cyan]")
         
         if resp_book_title == normalized_title and resp_book_author == normalized_author:
-            return response_json
+            return library_item
 
     return None
 
