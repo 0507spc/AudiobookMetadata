@@ -49,8 +49,8 @@ def _titles_are_close_match(title1, title2):
         shorter = norm_title1
     
     # Check if the shorter title is a substring of the longer one
-    # and is at least 70% of the longer title's length
-    if shorter in longer and len(shorter) >= len(longer) * 0.7:
+    # If so, it's likely the same book with additional info (subtitle, edition, etc.)
+    if shorter in longer:
         return True
     
     return False
@@ -128,6 +128,7 @@ def audiobookshelf_book_lookup(book_title, book_author, token, allow_partial_mat
         
         # Extract title and author from metadata
         resp_book_title = _normalize_title(metadata.get('title', ''))
+        resp_book_title_display = metadata.get('title', '')
         
         # Author is in metadata.authors as a list of objects with 'name' field
         authors = metadata.get('authors', [])
@@ -148,7 +149,7 @@ def audiobookshelf_book_lookup(book_title, book_author, token, allow_partial_mat
         # Check for close/partial match if allowed
         if allow_partial_match and resp_book_author == normalized_author and _titles_are_close_match(resp_book_title, normalized_title):
             console.print(f"\n[yellow]Found a close match:[/yellow]")
-            console.print(f"  [cyan]Title in library:[/cyan] {metadata.get('title', '')}")
+            console.print(f"  [cyan]Title in library:[/cyan] {resp_book_title_display}")
             console.print(f"  [cyan]Title searched:[/cyan] {book_title}")
             console.print(f"  [cyan]Author:[/cyan] {authors[0].get('name', '') if authors else 'Unknown'}")
             
