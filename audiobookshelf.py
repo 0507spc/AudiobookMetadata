@@ -60,6 +60,10 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
         # Handle case where 'book' might be a list
         book_data = response_json['book'][0] if isinstance(response_json['book'], list) else response_json['book']
         
+        # Debug: Print book_data keys
+        console.print(f"[yellow]Book data keys: {book_data.keys()}[/yellow]")
+        console.print(f"[yellow]Full book data: {json.dumps(book_data, indent=2)}[/yellow]")
+        
         resp_book_title = re.sub(r'\W+', '', str(book_data['title']).lower())
         resp_book_author = re.sub(r'\W+', '', str(response_json['authors'][0]['name']).lower()) if response_json.get('authors') else ""
         
