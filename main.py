@@ -93,7 +93,8 @@ def _build_media_payload(aud_book_details, fields):
         elif k == "publisher":
             payload["publisher"] = aud_book_details.get("publisher", "")
         elif k == "description":
-            payload["description"] = aud_book_details.get("description", "") or aud_book_details.get("descriptionPlain", "")
+            # Try to use the summary from AudNexus if available, then fall back to description or descriptionPlain
+            payload["description"] = aud_book_details.get("summary", "") or aud_book_details.get("description", "") or aud_book_details.get("descriptionPlain", "")
         elif k == "isbn":
             payload["isbn"] = aud_book_details.get("isbn", "") or aud_book_details.get("tagIsbn", "")
         elif k == "asin":

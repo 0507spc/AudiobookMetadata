@@ -36,6 +36,8 @@ def audnexus_asin_lookup(asin_list: list[str]) -> dict:
             continue
 
         book_md = api_call.json()  # Load JSON & add row to table
+        # Debug: Print available keys in the book metadata
+        console.print(f"[dim]Available fields in AudNexus response: {list(book_md.keys())}[/dim]")
         aud_link = f"[link=https://www.audible.com/pd/{book_md['asin']}]{book_md['asin']}[/link]"  # Format a link to the audible details page
 
         aud_details.add_row(
