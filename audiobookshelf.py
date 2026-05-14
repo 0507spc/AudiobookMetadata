@@ -26,7 +26,8 @@ def audiobookshelf_login():
 
 
 def audiobookshelf_book_lookup(book_title, book_author, token):
-    lookup_request = requests.get(url=f'{os.getenv("AUDIOBOOKSHELF_URL")}/api/libraries/main/search?q={book_title}', headers={'Authorization': f'Bearer {token}'})
+    library_name = os.getenv("AUDIOBOOKSHELF_LIBRARY", "main")
+    lookup_request = requests.get(url=f'{os.getenv("AUDIOBOOKSHELF_URL")}/api/libraries/{library_name}/search?q={book_title}', headers={'Authorization': f'Bearer {token}'})
     if not lookup_request.ok or len(lookup_request.json()['audiobooks']) == 0:
         return None
 
@@ -84,7 +85,6 @@ class AudiobookshelfBook:
     def return_json(self):
         # Prepare the json for the POST request to audiobookshelf (dumps to string) & return
         return json.dumps(self.book_payload)
-
 
 
 
