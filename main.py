@@ -1,3 +1,4 @@
+import argparse
 import requests
 from rich import box, print_json
 from rich.prompt import Prompt, Confirm
@@ -34,13 +35,50 @@ def search_audible(book_title, book_author):
         return possible_asin
 
 
+def parse_args():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(
+        description="Search for audiobook metadata and update audiobookshelf"
+    )
+    parser.add_argument(
+        "-t", "--title",
+        help="Book title (if not provided, will prompt)",
+        default=None
+    )
+    parser.add_argument(
+        "-a", "--author",
+        help="Book author (if not provided, will prompt)",
+        default=None
+    )
+    parser.add_argument(
+        "--skip-show-search-json",
+        action="store_true",
+        help="Skip prompting to show Audible search JSON (automatically set to False)"
+    )
+    parser.add_argument(
+        "--skip-show-abs-json",
+        action="store_true",
+        help="Skip prompting to show Audiobookshelf JSON (automatically set to False)"
+    )
+    return parser.parse_args()
+
 
 if __name__ == '__main__':
-    # Prompt user for book title & author (book title can not be blank)
-    book_title_prompt = Prompt.ask("Book Title")
-    while not bool(book_title_prompt):  # Verify user input is not empty
-        book_title_prompt = Prompt.ask("Book Title (Can't be blank)")
-    book_author_prompt = Prompt.ask("Author")
+    args = parse_args()
+    
+    # Get book title from args or prompt
+    if args.title:
+        book_title_prompt = args.title
+    else:
+        book_title_prompt = Prompt.ask("Book Title")
+        while not bool(book_title_prompt):  # Verify user input is not empty
+            book_title_prompt = Prompt.ask("Book Title (Can't be blank)")
+    
+    # Get book author from args or prompt
+    if args.author:
+        book_author_prompt = args.author
+    else:
+        book_author_prompt = Prompt.ask("Author")
 
     query_aud = search_audible(book_title=book_title_prompt, book_author=book_author_prompt)
 
@@ -49,10 +87,11 @@ if __name__ == '__main__':
         console.line(count=2)  # Print 2 blank lines
         console.print(f'OK, We got the audiobook metadata for "[chartreuse2]{aud_book_details["title"]}[/chartreuse2]" by "[chartreuse2]{aud_book_details["authors"][0]["name"]}[/chartreuse2]"')
 
-        # Ask if the user wants to see json output
-        if Confirm.ask(prompt="Show JSON output?", default=False):
-            print_json(data=aud_book_details)
-            console.line(count=1)
+        # Ask if the user wants to see json output (skip if flag is set)
+        if not args.skip_show_search_json:
+            if Confirm.ask(prompt="Show JSON output?", default=False):
+                print_json(data=aud_book_details)
+                console.line(count=1)
 
         # Prompt user if they want to search audiobookshelf for the book & update the books details if found
         if Confirm.ask(prompt="\nSearch audiobookshelf for the book?", default=True):
@@ -61,11 +100,13 @@ if __name__ == '__main__':
                 # Now try & find the book on audiobookshelf
                 audiobookshelf_lookup = audiobookshelf_book_lookup(book_title=aud_book_details["title"], book_author=aud_book_details["authors"][0]["name"], token=bearer_token)
                 if audiobookshelf_lookup:
-                    console.print(f'Yay we found: "[dodger_blue1]{audiobookshelf_lookup["book"]["title"]}[/dodger_blue1]" by "[dodger_blue1]{audiobookshelf_lookup["book"]["author"]}[/dodger_blue1]" on audiobookshelf!\n')
+                    console.print(f'Yay we found: "[dodger_blue1]{audiobookshelf_lookup["book"]["title"]}[/dodger_blue1]" by "[dodger_blue1]{audiobookshelf_lookup["book"]["author"]}[/dodger_blue1]"')
+                    console.line(count=1)
 
-                    if Confirm.ask(prompt="Show audiobookshelf json response?", default=False):
-                        print_json(data=audiobookshelf_lookup)
-                        console.line(count=1)
+                    if not args.skip_show_abs_json:
+                        if Confirm.ask(prompt="Show audiobookshelf json response?", default=False):
+                            print_json(data=audiobookshelf_lookup)
+                            console.line(count=1)
 
                     # Use the AudiobookshelfBook class to create a default book object
                     p1 = AudiobookshelfBook(audiobookshelf_json=audiobookshelf_lookup, audnexus_json=aud_book_details)
@@ -82,5 +123,3 @@ if __name__ == '__main__':
                     console.print("\nBook not found on audiobookshelf.\n", style="red")
             else:
                 console.print("\nError: Unable to get bearer token. Quitting...", style="red")
-
-
