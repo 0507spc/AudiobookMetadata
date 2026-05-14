@@ -25,7 +25,50 @@ def audiobookshelf_login():
     return login_request.json()['user']['token'] if login_request.ok else None
 
 
-def audiobookshelf_book_lookup(book_title, book_author, token):
+def _normalize_title(title):
+    """Normalize title by removing special characters and converting to lowercase"""
+    return re.sub(r'\W+', '', str(title).lower())
+
+
+def _titles_are_close_match(title1, title2):
+    """Check if titles are close enough (one contains most of the other)"""
+    norm_title1 = _normalize_title(title1)
+    norm_title2 = _normalize_title(title2)
+    
+    # If exact match, return True
+    if norm_title1 == norm_title2:
+        return True
+    
+    # If one is significantly longer, check if the shorter one is contained in the longer one
+    # This handles cases like "Title: Subtitle" matching "Title"
+    if len(norm_title1) > len(norm_title2):
+        longer = norm_title1
+        shorter = norm_title2
+    else:
+        longer = norm_title2
+        shorter = norm_title1
+    
+    # Check if the shorter title is a substring of the longer one
+    # and is at least 70% of the longer title's length
+    if shorter in longer and len(shorter) >= len(longer) * 0.7:
+        return True
+    
+    return False
+
+
+def audiobookshelf_book_lookup(book_title, book_author, token, allow_partial_match=True):
+    """
+    Lookup a book in audiobookshelf.
+    
+    Args:
+        book_title: The title of the book to search for
+        book_author: The author of the book to search for
+        token: The authentication token
+        allow_partial_match: If True, will prompt user when a close match is found but not exact
+    
+    Returns:
+        Dictionary with book data, or None if not found or user rejects partial match
+    """
     library_name = os.getenv("AUDIOBOOKSHELF_LIBRARY", "main")
     lookup_url = f'{os.getenv("AUDIOBOOKSHELF_URL")}/api/libraries/{library_name}/search?q={book_title}'
     
@@ -49,10 +92,10 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
         
         lookup_response = response_json
         for audiobook in lookup_response['audiobooks']:
-            resp_book_title = re.sub(r'\W+', '', str(audiobook['audiobook']['book']['title']).lower())
-            resp_book_author = re.sub(r'\W+', '', str(audiobook['audiobook']['book']['author']).lower())
+            resp_book_title = _normalize_title(audiobook['audiobook']['book']['title'])
+            resp_book_author = _normalize_title(audiobook['audiobook']['book']['author'])
 
-            if resp_book_title == re.sub(r'\W+', '', str(book_title).lower()) and resp_book_author == re.sub(r'\W+', '', str(book_author).lower()):
+            if resp_book_title == _normalize_title(book_title) and resp_book_author == _normalize_title(book_author):
                 return audiobook["audiobook"]
     
     # Check if response is a single book object (direct result)
@@ -84,50 +127,68 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
         console.print(f"[yellow]Metadata keys: {metadata.keys()}[/yellow]")
         
         # Extract title and author from metadata
-        resp_book_title = re.sub(r'\W+', '', str(metadata.get('title', '')).lower())
+        resp_book_title = _normalize_title(metadata.get('title', ''))
         
         # Author is in metadata.authors as a list of objects with 'name' field
         authors = metadata.get('authors', [])
         resp_book_author = ""
         if authors and len(authors) > 0:
-            resp_book_author = re.sub(r'\W+', '', str(authors[0].get('name', '')).lower())
+            resp_book_author = _normalize_title(authors[0].get('name', ''))
         
-        normalized_title = re.sub(r'\W+', '', str(book_title).lower())
-        normalized_author = re.sub(r'\W+', '', str(book_author).lower())
+        normalized_title = _normalize_title(book_title)
+        normalized_author = _normalize_title(book_author)
         
         console.print(f"[cyan]Comparing: '{resp_book_title}' vs '{normalized_title}'[/cyan]")
         console.print(f"[cyan]Comparing authors: '{resp_book_author}' vs '{normalized_author}'[/cyan]")
         
+        # Check for exact match first
         if resp_book_title == normalized_title and resp_book_author == normalized_author:
-            # Build the return object in the expected format
-            # Extract narrator names from the narrators list
-            narrators = metadata.get('narrators', [])
-            narrator_str = ", ".join(narrators) if narrators else ""
+            return _build_book_return(library_item, metadata, authors)
+        
+        # Check for close/partial match if allowed
+        if allow_partial_match and resp_book_author == normalized_author and _titles_are_close_match(resp_book_title, normalized_title):
+            console.print(f"\n[yellow]Found a close match:[/yellow]")
+            console.print(f"  [cyan]Title in library:[/cyan] {metadata.get('title', '')}")
+            console.print(f"  [cyan]Title searched:[/cyan] {book_title}")
+            console.print(f"  [cyan]Author:[/cyan] {authors[0].get('name', '') if authors else 'Unknown'}")
             
-            # Extract series info if available
-            series_list = metadata.get('series', [])
-            series_name = series_list[0].get('name', '') if series_list else ""
-            series_sequence = series_list[0].get('sequence', '') if series_list else ""
-            
-            # Build the expected return format
-            return {
-                "id": library_item.get('id'),
-                "book": {
-                    "title": metadata.get('title', ''),
-                    "subtitle": metadata.get('subtitle', ''),
-                    "description": metadata.get('description', ''),
-                    "author": authors[0].get('name', '') if authors else "",
-                    "narrator": narrator_str,
-                    "series": series_name,
-                    "volumeNumber": series_sequence,
-                    "publishYear": metadata.get('publishedYear', ''),
-                    "publisher": metadata.get('publisher', ''),
-                    "isbn": metadata.get('isbn', ''),
-                },
-                "libraryItem": library_item
-            }
+            response = input("\nIs this the book you're looking for? [y/n]: ").strip().lower()
+            if response == 'y':
+                return _build_book_return(library_item, metadata, authors)
+            else:
+                return None
 
     return None
+
+
+def _build_book_return(library_item, metadata, authors):
+    """Build the standard book return object"""
+    # Extract narrator names from the narrators list
+    narrators = metadata.get('narrators', [])
+    narrator_str = ", ".join(narrators) if narrators else ""
+    
+    # Extract series info if available
+    series_list = metadata.get('series', [])
+    series_name = series_list[0].get('name', '') if series_list else ""
+    series_sequence = series_list[0].get('sequence', '') if series_list else ""
+    
+    # Build the expected return format
+    return {
+        "id": library_item.get('id'),
+        "book": {
+            "title": metadata.get('title', ''),
+            "subtitle": metadata.get('subtitle', ''),
+            "description": metadata.get('description', ''),
+            "author": authors[0].get('name', '') if authors else "",
+            "narrator": narrator_str,
+            "series": series_name,
+            "volumeNumber": series_sequence,
+            "publishYear": metadata.get('publishedYear', ''),
+            "publisher": metadata.get('publisher', ''),
+            "isbn": metadata.get('isbn', ''),
+        },
+        "libraryItem": library_item
+    }
 
 
 # Create a new class to parse the json & update certain fields then return the json
