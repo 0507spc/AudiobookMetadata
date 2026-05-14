@@ -99,7 +99,33 @@ def audiobookshelf_book_lookup(book_title, book_author, token):
         console.print(f"[cyan]Comparing authors: '{resp_book_author}' vs '{normalized_author}'[/cyan]")
         
         if resp_book_title == normalized_title and resp_book_author == normalized_author:
-            return library_item
+            # Build the return object in the expected format
+            # Extract narrator names from the narrators list
+            narrators = metadata.get('narrators', [])
+            narrator_str = ", ".join(narrators) if narrators else ""
+            
+            # Extract series info if available
+            series_list = metadata.get('series', [])
+            series_name = series_list[0].get('name', '') if series_list else ""
+            series_sequence = series_list[0].get('sequence', '') if series_list else ""
+            
+            # Build the expected return format
+            return {
+                "id": library_item.get('id'),
+                "book": {
+                    "title": metadata.get('title', ''),
+                    "subtitle": metadata.get('subtitle', ''),
+                    "description": metadata.get('description', ''),
+                    "author": authors[0].get('name', '') if authors else "",
+                    "narrator": narrator_str,
+                    "series": series_name,
+                    "volumeNumber": series_sequence,
+                    "publishYear": metadata.get('publishedYear', ''),
+                    "publisher": metadata.get('publisher', ''),
+                    "isbn": metadata.get('isbn', ''),
+                },
+                "libraryItem": library_item
+            }
 
     return None
 
