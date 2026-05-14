@@ -27,21 +27,30 @@ def audiobookshelf_login():
 
 def audiobookshelf_book_lookup(book_title, book_author, token):
     library_name = os.getenv("AUDIOBOOKSHELF_LIBRARY", "main")
-    lookup_request = requests.get(url=f'{os.getenv("AUDIOBOOKSHELF_URL")}/api/libraries/{library_name}/search?q={book_title}', headers={'Authorization': f'Bearer {token}'})
-    if not lookup_request.ok or len(lookup_request.json()['audiobooks']) == 0:
+    lookup_url = f'{os.getenv("AUDIOBOOKSHELF_URL")}/api/libraries/{library_name}/search?q={book_title}'
+    
+    lookup_request = requests.get(url=lookup_url, headers={'Authorization': f'Bearer {token}'})
+    
+    # Debug: Print response status and content
+    if not lookup_request.ok:
+        console.print(f"[red]API Error: {lookup_request.status_code}[/red]")
+        console.print(f"[red]Response: {lookup_request.text}[/red]")
+        return None
+    
+    response_json = lookup_request.json()
+    
+    # Debug: Print response structure
+    console.print(f"[yellow]Response keys: {response_json.keys()}[/yellow]")
+    
+    if 'audiobooks' not in response_json or len(response_json['audiobooks']) == 0:
         return None
 
-    lookup_response = lookup_request.json()
+    lookup_response = response_json
     for audiobook in lookup_response['audiobooks']:
         resp_book_title = re.sub(r'\W+', '', str(audiobook['audiobook']['book']['title']).lower())
         resp_book_author = re.sub(r'\W+', '', str(audiobook['audiobook']['book']['author']).lower())
-        # book_title = ''.join(e for e in str(audiobook['audiobook']['book']['title']) if e.isalnum()).lower()
-        # book_author = ''.join(e for e in str(audiobook['audiobook']['book']['author']) if e.isalnum()).lower()
 
         if resp_book_title == re.sub(r'\W+', '', str(book_title).lower()) and resp_book_author == re.sub(r'\W+', '', str(book_author).lower()):
-            # print(f'Found audiobookshelf! id: {audiobook["audiobook"]["id"]}')
-            # print(print_json(json.dumps(audiobook)))
-            # quit()
             return audiobook["audiobook"]
 
     return None
