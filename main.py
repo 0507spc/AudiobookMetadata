@@ -60,6 +60,11 @@ def parse_args():
         action="store_true",
         help="Skip prompting to show Audiobookshelf JSON (automatically set to False)"
     )
+    parser.add_argument(
+        "--search-abs",
+        action="store_true",
+        help="Automatically search audiobookshelf without prompting"
+    )
     return parser.parse_args()
 
 
@@ -93,8 +98,11 @@ if __name__ == '__main__':
                 print_json(data=aud_book_details)
                 console.line(count=1)
 
+        # Determine if we should search audiobookshelf
+        should_search_abs = args.search_abs or Confirm.ask(prompt="\nSearch audiobookshelf for the book?", default=True)
+        
         # Prompt user if they want to search audiobookshelf for the book & update the books details if found
-        if Confirm.ask(prompt="\nSearch audiobookshelf for the book?", default=True):
+        if should_search_abs:
             bearer_token = audiobookshelf_login()  # Get the bearer token
             if bearer_token:
                 # Now try & find the book on audiobookshelf
