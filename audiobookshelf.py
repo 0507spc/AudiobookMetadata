@@ -232,7 +232,26 @@ class AudiobookshelfBook:
         return json.dumps(self.book_payload)
 
 
+def audiobookshelf_media_update(item_id, media_payload, token):
+    """
+    Update media metadata for a library item.
 
+    Sends a PATCH to: {AUDIOBOOKSHELF_URL}/api/items/<item_id>/media
+    media_payload should be a JSON-serializable dict with the fields you want to update.
+    """
+    headers = {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json, text/plain, */*',
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json;charset=utf-8'
+    }
+
+    url = f'{os.getenv("AUDIOBOOKSHELF_URL")}/api/items/{item_id}/media'
+    resp = requests.patch(url=url, headers=headers, json=media_payload)
+    if not resp.ok:
+        console.print(f"[red]Audiobookshelf update failed: {resp.status_code}[/red]")
+        console.print(f"[red]{resp.text}[/red]")
+    return bool(resp.ok)
 
 def audiobookshelf_book_update(book_id, book_payload, token):
     # I got these headers from test requests made in Postman
