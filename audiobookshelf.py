@@ -192,46 +192,6 @@ def _build_book_return(library_item, metadata, authors):
     }
 
 
-# Create a new class to parse the json & update certain fields then return the json
-class AudiobookshelfBook:
-    def __init__(self, audiobookshelf_json, audnexus_json):
-        self.book_payload = {
-            "book": {
-                "title": f'{audiobookshelf_json["book"]["title"]}',
-                "subtitle": audiobookshelf_json['book']['subtitle'],
-                "description": audiobookshelf_json['book']['description'],
-                "author": audiobookshelf_json['book']['author'],
-                "narrator": audiobookshelf_json['book']['narrator'],
-                "series": audiobookshelf_json['book']['series'],
-                "volumeNumber": audiobookshelf_json['book']['volumeNumber'],
-                "publishYear": audiobookshelf_json['book']['publishYear'],
-                "publisher": audiobookshelf_json['book']['publisher'],
-                "isbn": audiobookshelf_json['book']['isbn'],
-                "genres": []
-            },
-            "tags": []
-        }
-
-
-    def update_book_title(self, new_title):
-        self.book_payload['book']['title'] = new_title
-        return self.book_payload
-
-    def update_tags(self, tags):
-        self.book_payload['tags'] = tags
-        return self.book_payload
-
-    def update_genres(self, genres):
-        self.book_payload['book']['genres'] = genres
-        return self.book_payload
-
-
-
-    def return_json(self):
-        # Prepare the json for the POST request to audiobookshelf (dumps to string) & return
-        return json.dumps(self.book_payload)
-
-
 def audiobookshelf_media_update(item_id, media_payload, token):
     """
     Update media metadata for a library item.
@@ -252,17 +212,3 @@ def audiobookshelf_media_update(item_id, media_payload, token):
         console.print(f"[red]Audiobookshelf update failed: {resp.status_code}[/red]")
         console.print(f"[red]{resp.text}[/red]")
     return bool(resp.ok)
-
-def audiobookshelf_book_update(book_id, book_payload, token):
-    # I got these headers from test requests made in Postman
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:94.0) Gecko/20100101 Firefox/94.0',
-        'Accept': 'application/json, text/plain, */*',
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json;charset=utf-8'
-    }
-
-    # Update the book details in the audiobookshelf
-    update_book_request = requests.patch(url=f'{os.getenv("AUDIOBOOKSHELF_URL")}/api/books/{book_id}', headers=headers, data=book_payload)
-
-    return bool(update_book_request.ok)

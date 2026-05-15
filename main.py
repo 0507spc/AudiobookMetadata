@@ -3,7 +3,7 @@ import requests
 from rich import box, print_json
 from rich.prompt import Prompt, Confirm
 from rich.console import Console
-from audiobookshelf import AudiobookshelfBook, audiobookshelf_login, audiobookshelf_book_lookup, audiobookshelf_book_update, audiobookshelf_media_update
+from audiobookshelf import audiobookshelf_login, audiobookshelf_book_lookup, audiobookshelf_media_update
 from audnexus import audnexus_asin_lookup
 
 console = Console()
@@ -217,36 +217,22 @@ def main():
     
         # Handle dry-run mode
         if args.dry_run:
-            console.print("[yellow]DRY RUN: Showing AudNexus data and the payload that would be sent to Audiobookshelf[/yellow]")
-            console.print("[cyan]AudNexus book details:[/cyan]")
-            print_json(data=aud_book_details)
-            
-            # Determine the fields to update for media payload
             if args.update_fields:
                 if args.update_fields.strip().lower() == "all":
                     fields = ["title","subtitle","authors","narrators","series","genres","publishedYear","publishedDate","publisher","description","isbn","asin","language","explicit","tags"]
                 else:
                     fields = [f.strip() for f in args.update_fields.split(",") if f.strip()]
             else:
-                fields = []  # No media fields specified via --update-fields
+                console.print("[yellow]DRY RUN: No --update-fields specified, nothing to update.[/yellow]")
+                return
             
-            if fields:
-                media_payload = _build_media_payload(aud_book_details, fields)
-                formatted_payload = _format_media_payload(media_payload)
-                console.print("[cyan]Media payload to be sent to Audiobookshelf:[/cyan]")
-                print_json(data=formatted_payload)
-                console.print("[yellow]Note: The book endpoint would also be updated with genres and tags from AudNexus (if the book is found on ABS).[/yellow]")
-            else:
-                console.print("[yellow]No media fields specified for update (via --update-fields). Only genres and tags would be updated via the book endpoint.[/yellow]")
-                console.print("[cyan]Book endpoint payload (genres and tags only):[/cyan]")
-                # Show what would be sent to the book endpoint for genres and tags
-                book_payload = {
-                    "book": {
-                        "genres": [g['name'] for g in aud_book_details["genres"] if g["type"] == "genre"]
-                    },
-                    "tags": [t['name'] for t in aud_book_details["genres"] if t["type"] == "tag"]
-                }
-                print_json(data=book_payload)
+            console.print("[yellow]DRY RUN: Showing AudNexus data and the payload that would be sent to Audiobookshelf[/yellow]")
+            console.print("[cyan]AudNexus book details:[/cyan]")
+            print_json(data=aud_book_details)
+            console.print("[cyan]Media payload to be sent to Audiobookshelf:[/cyan]")
+            media_payload = _build_media_payload(aud_book_details, fields)
+            formatted_payload = _format_media_payload(media_payload)
+            print_json(data=formatted_payload)
             return  # Exit early for dry-run
     
         # Ask if the user wants to see json output (skip if flag is set)
@@ -278,28 +264,17 @@ def main():
                             fields = ["title","subtitle","authors","narrators","series","genres","publishedYear","publishedDate","publisher","description","isbn","asin","language","explicit","tags"]
                         else:
                             fields = [f.strip() for f in args.update_fields.split(",") if f.strip()]
-                    
+
                         media_payload = _build_media_payload(aud_book_details, fields)
                         formatted_payload = _format_media_payload(media_payload)
-                        success = audiobookshelf_media_update(item_id=audiobookshelf_lookup["libraryItem"]["id"] if "libraryItem" in audiobookshelf_lookup else audiobookshelf_lookup["id"], media_payload=formatted_payload, token=bearer_token)
+                        item_id = audiobookshelf_lookup["libraryItem"]["id"] if "libraryItem" in audiobookshelf_lookup else audiobookshelf_lookup["id"]
+                        success = audiobookshelf_media_update(item_id=item_id, media_payload=formatted_payload, token=bearer_token)
                         if success:
                             console.print("\nSelected fields updated on audiobookshelf.\n", style="green")
                         else:
                             console.print("\nFailed to update selected fields on audiobookshelf.\n", style="red")
-    
-    
-                # Use the AudiobookshelfBook class to create a default book object
-                p1 = AudiobookshelfBook(audiobookshelf_json=audiobookshelf_lookup, audnexus_json=aud_book_details)
-                # Update the book genres & tags which we get back from the audnexus api (AKA audible)
-                p1.update_genres(genres=[g['name'] for g in aud_book_details["genres"] if g["type"] == "genre"])
-                p1.update_tags(tags=[t['name'] for t in aud_book_details["genres"] if t["type"] == "tag"])
-    
-                # Update the book on audiobookshelf
-                f = audiobookshelf_book_update(book_id=audiobookshelf_lookup["id"], book_payload=p1.return_json(), token=bearer_token)
-                if f:
-                    console.print("\nBook updated on audiobookshelf.\n", style="green")
-                else:
-                    console.print("\nBook update failed.\n", style="red")
+                    else:
+                        console.print("[yellow]No --update-fields specified, skipping update.[/yellow]")
             else:
                 console.print("\nError: Unable to get bearer token. Quitting...", style="red")
 
