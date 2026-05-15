@@ -55,6 +55,10 @@ This repository contains tools for automatically setting Genres & Tags on audiob
    - Update functions in audiobookshelf.py
    - Ensure proper payload formatting for different endpoints
 
+4. Using dry-run mode:
+   - Use the `--dry-run` flag to see what would be updated without making changes
+   - Useful for testing field mappings and payload generation
+
 ## Workflow
 1. User provides book title/author (via CLI args or prompt)
 2. Script searches Audible for potential matches
