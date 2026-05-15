@@ -109,6 +109,19 @@ def _build_media_payload(aud_book_details, fields):
 
     return payload
 
+
+def _format_media_payload(flat_payload):
+    """
+    Structure the flat media payload for the Audiobookshelf /items/<ID>/media endpoint.
+    Metadata fields go under a 'metadata' key; tags remain at the top level.
+    """
+    metadata_fields = {k: v for k, v in flat_payload.items() if k != "tags"}
+    formatted = {"metadata": metadata_fields}
+    if "tags" in flat_payload:
+        formatted["tags"] = flat_payload["tags"]
+    return formatted
+
+
 def search_audible(book_title, book_author):
     with console.status("Searching for possible matches on Audible...") as _:
         query = requests.get(
@@ -219,8 +232,9 @@ def main():
             
             if fields:
                 media_payload = _build_media_payload(aud_book_details, fields)
+                formatted_payload = _format_media_payload(media_payload)
                 console.print("[cyan]Media payload to be sent to Audiobookshelf:[/cyan]")
-                print_json(data=media_payload)
+                print_json(data=formatted_payload)
                 console.print("[yellow]Note: The book endpoint would also be updated with genres and tags from AudNexus (if the book is found on ABS).[/yellow]")
             else:
                 console.print("[yellow]No media fields specified for update (via --update-fields). Only genres and tags would be updated via the book endpoint.[/yellow]")
@@ -266,9 +280,8 @@ def main():
                             fields = [f.strip() for f in args.update_fields.split(",") if f.strip()]
                     
                         media_payload = _build_media_payload(aud_book_details, fields)
-                        # If Audiobookshelf expects the payload nested under "metadata" or "media", adjust accordingly.
-                        # Example (if required): media_payload = {"metadata": media_payload}
-                        success = audiobookshelf_media_update(item_id=audiobookshelf_lookup["libraryItem"]["id"] if "libraryItem" in audiobookshelf_lookup else audiobookshelf_lookup["id"], media_payload=media_payload, token=bearer_token)
+                        formatted_payload = _format_media_payload(media_payload)
+                        success = audiobookshelf_media_update(item_id=audiobookshelf_lookup["libraryItem"]["id"] if "libraryItem" in audiobookshelf_lookup else audiobookshelf_lookup["id"], media_payload=formatted_payload, token=bearer_token)
                         if success:
                             console.print("\nSelected fields updated on audiobookshelf.\n", style="green")
                         else:
@@ -285,9 +298,8 @@ def main():
                 f = audiobookshelf_book_update(book_id=audiobookshelf_lookup["id"], book_payload=p1.return_json(), token=bearer_token)
                 if f:
                     console.print("\nBook updated on audiobookshelf.\n", style="green")
-    
                 else:
-                    console.print("\nBook not found on audiobookshelf.\n", style="red")
+                    console.print("\nBook update failed.\n", style="red")
             else:
                 console.print("\nError: Unable to get bearer token. Quitting...", style="red")
 
