@@ -170,10 +170,15 @@ def parse_args():
         action="store_true",
         help="Automatically search audiobookshelf without prompting"
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be updated without actually updating Audiobookshelf"
+    )
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+def main():
     args = parse_args()
     
     # Get book title from args or prompt
@@ -189,20 +194,53 @@ if __name__ == '__main__':
         book_author_prompt = args.author
     else:
         book_author_prompt = Prompt.ask("Author")
-
+    
     query_aud = search_audible(book_title=book_title_prompt, book_author=book_author_prompt)
-
+    
     if bool(query_aud):  # If the function returned at-least 1 asin we can call new function to gt book details
         aud_book_details = audnexus_asin_lookup(query_aud)
         console.line(count=2)  # Print 2 blank lines
         console.print(f'OK, We got the audiobook metadata for "[chartreuse2]{aud_book_details["title"]}[/chartreuse2]" by "[chartreuse2]{aud_book_details["authors"][0]["name"]}[/chartreuse2]"')
-
+    
+        # Handle dry-run mode
+        if args.dry_run:
+            console.print("[yellow]DRY RUN: Showing AudNexus data and the payload that would be sent to Audiobookshelf[/yellow]")
+            console.print("[cyan]AudNexus book details:[/cyan]")
+            print_json(data=aud_book_details)
+            
+            # Determine the fields to update for media payload
+            if args.update_fields:
+                if args.update_fields.strip().lower() == "all":
+                    fields = ["title","subtitle","authors","narrators","series","genres","publishedYear","publishedDate","publisher","description","isbn","asin","language","explicit","tags"]
+                else:
+                    fields = [f.strip() for f in args.update_fields.split(",") if f.strip()]
+            else:
+                fields = []  # No media fields specified via --update-fields
+            
+            if fields:
+                media_payload = _build_media_payload(aud_book_details, fields)
+                console.print("[cyan]Media payload to be sent to Audiobookshelf:[/cyan]")
+                print_json(data=media_payload)
+                console.print("[yellow]Note: The book endpoint would also be updated with genres and tags from AudNexus (if the book is found on ABS).[/yellow]")
+            else:
+                console.print("[yellow]No media fields specified for update (via --update-fields). Only genres and tags would be updated via the book endpoint.[/yellow]")
+                console.print("[cyan]Book endpoint payload (genres and tags only):[/cyan]")
+                # Show what would be sent to the book endpoint for genres and tags
+                book_payload = {
+                    "book": {
+                        "genres": [g['name'] for g in aud_book_details["genres"] if g["type"] == "genre"]
+                    },
+                    "tags": [t['name'] for t in aud_book_details["genres"] if t["type"] == "tag"]
+                }
+                print_json(data=book_payload)
+            return  # Exit early for dry-run
+    
         # Ask if the user wants to see json output (skip if flag is set)
         if not args.skip_show_search_json:
             if Confirm.ask(prompt="Show JSON output?", default=False):
                 print_json(data=aud_book_details)
                 console.line(count=1)
-
+    
         # Determine if we should search audiobookshelf
         should_search_abs = args.search_abs or Confirm.ask(prompt="\nSearch audiobookshelf for the book?", default=True)
         
@@ -215,7 +253,7 @@ if __name__ == '__main__':
                 if audiobookshelf_lookup:
                     console.print(f'Yay we found: "[dodger_blue1]{audiobookshelf_lookup["book"]["title"]}[/dodger_blue1]" by "[dodger_blue1]{audiobookshelf_lookup["book"]["author"]}[/dodger_blue1]"')
                     console.line(count=1)
-
+    
                     if not args.skip_show_abs_json:
                         if Confirm.ask(prompt="Show audiobookshelf json response?", default=False):
                             print_json(data=audiobookshelf_lookup)
@@ -235,22 +273,23 @@ if __name__ == '__main__':
                             console.print("\nSelected fields updated on audiobookshelf.\n", style="green")
                         else:
                             console.print("\nFailed to update selected fields on audiobookshelf.\n", style="red")
-
-
-
-        
-                    # Use the AudiobookshelfBook class to create a default book object
-                    p1 = AudiobookshelfBook(audiobookshelf_json=audiobookshelf_lookup, audnexus_json=aud_book_details)
-                    # Update the book genres & tags which we get back from the audnexus api (AKA audible)
-                    p1.update_genres(genres=[g['name'] for g in aud_book_details["genres"] if g["type"] == "genre"])
-                    p1.update_tags(tags=[t['name'] for t in aud_book_details["genres"] if t["type"] == "tag"])
-
-                    # Update the book on audiobookshelf
-                    f = audiobookshelf_book_update(book_id=audiobookshelf_lookup["id"], book_payload=p1.return_json(), token=bearer_token)
-                    if f:
-                        console.print("\nBook updated on audiobookshelf.\n", style="green")
-
+    
+    
+                # Use the AudiobookshelfBook class to create a default book object
+                p1 = AudiobookshelfBook(audiobookshelf_json=audiobookshelf_lookup, audnexus_json=aud_book_details)
+                # Update the book genres & tags which we get back from the audnexus api (AKA audible)
+                p1.update_genres(genres=[g['name'] for g in aud_book_details["genres"] if g["type"] == "genre"])
+                p1.update_tags(tags=[t['name'] for t in aud_book_details["genres"] if t["type"] == "tag"])
+    
+                # Update the book on audiobookshelf
+                f = audiobookshelf_book_update(book_id=audiobookshelf_lookup["id"], book_payload=p1.return_json(), token=bearer_token)
+                if f:
+                    console.print("\nBook updated on audiobookshelf.\n", style="green")
+    
                 else:
                     console.print("\nBook not found on audiobookshelf.\n", style="red")
             else:
                 console.print("\nError: Unable to get bearer token. Quitting...", style="red")
+
+if __name__ == '__main__':
+    main()
