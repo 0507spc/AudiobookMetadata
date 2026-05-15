@@ -253,13 +253,15 @@ def main():
                 if audiobookshelf_lookup:
                     console.print(f'Yay we found: "[dodger_blue1]{audiobookshelf_lookup["book"]["title"]}[/dodger_blue1]" by "[dodger_blue1]{audiobookshelf_lookup["book"]["author"]}[/dodger_blue1]"')
                     console.line(count=1)
-    
+
                     if not args.skip_show_abs_json:
                         if Confirm.ask(prompt="Show audiobookshelf json response?", default=False):
                             print_json(data=audiobookshelf_lookup)
                             console.line(count=1)
-                            
-                    if args.update_fields:
+
+                    if not Confirm.ask(prompt="\nUpdate this book?", default=True):
+                        console.print("[yellow]Update skipped.[/yellow]")
+                    elif args.update_fields:
                         if args.update_fields.strip().lower() == "all":
                             fields = ["title","subtitle","authors","narrators","series","genres","publishedYear","publishedDate","publisher","description","isbn","asin","language","explicit","tags"]
                         else:
@@ -274,7 +276,7 @@ def main():
                         else:
                             console.print("\nFailed to update selected fields on audiobookshelf.\n", style="red")
                     else:
-                        console.print("[yellow]No --update-fields specified, skipping update.[/yellow]")
+                        console.print("[yellow]No --update-fields specified, nothing to update.[/yellow]")
             else:
                 console.print("\nError: Unable to get bearer token. Quitting...", style="red")
 
